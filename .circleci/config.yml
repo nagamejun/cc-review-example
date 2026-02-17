@@ -1,0 +1,33 @@
+version: 2.1
+jobs:
+  claude-review:
+    docker:
+      - image: cimg/node:24.13.0
+    steps:
+      - checkout
+      - run:
+          name: Install Claude Code
+          command: npm install -g @anthropic-ai/claude-code
+      - run:
+          name: Setup Claude Config
+          command: |
+            # 非対話モードで動かすための初期設定
+            mkdir -p ~/.claude
+            echo '{"hasCompletedOnboarding": true}' > ~/.claude/config.json
+      - run:
+          name: Run PR Review
+          command: |
+            # pr-review-toolkit スキルを呼び出してレビューを実行
+            # -p (prompt) で明示的に命令を渡します
+            claude -p "/pr-review-toolkit:review-pr"
+          environment:
+            CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}
+            GITHUB_TOKEN: ${GH_TOKEN}
+
+workflows:
+  on-pr:
+    jobs:
+      - claude-review:
+          filters:
+            branches:
+              ignore: main # 必要に応じて調整
