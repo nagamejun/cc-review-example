@@ -19,10 +19,9 @@ jobs:
           command: |
             # pr-review-toolkit スキルを呼び出してレビューを実行
             # -p (prompt) で明示的に命令を渡します
+            # CLAUDE_CODE_OAUTH_TOKEN は CircleCI プロジェクト環境変数から自動注入される
+            export GITHUB_TOKEN="$GH_TOKEN"
             claude -p "/pr-review-toolkit:review-pr"
-          environment:
-            CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}
-            GITHUB_TOKEN: ${GH_TOKEN}
 
 workflows:
   on-pr:
