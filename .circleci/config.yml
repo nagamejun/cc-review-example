@@ -38,6 +38,20 @@ jobs:
               echo "ERROR: claude produced no output — review may have failed silently" >&2
               exit 1
             fi
+      - run:
+          name: Post Review Comment
+          command: |
+            set -euo pipefail
+            if [ -z "${CIRCLE_PULL_REQUEST:-}" ]; then
+              echo "PR が検出されませんでした。コメントの投稿をスキップします"
+              exit 0
+            fi
+            PR_NUMBER=$(echo "$CIRCLE_PULL_REQUEST" | grep -oE '[0-9]+$')
+            curl -sf -X POST \
+              -H "Authorization: token $GH_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -Rs '{body: .}' /tmp/review-output.txt)" \
+              "https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/issues/${PR_NUMBER}/comments"
 
 workflows:
   on-pr:
