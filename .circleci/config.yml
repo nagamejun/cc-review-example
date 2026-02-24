@@ -25,7 +25,7 @@ jobs:
           command: |
             set -euo pipefail
             # CLAUDE_CODE_OAUTH_TOKEN は CircleCI がプロジェクト環境変数として自動 export 済み
-            # GH_TOKEN は CircleCI の命名規則のため、claude が期待する GITHUB_TOKEN に明示的に再マップする
+            # GH_TOKEN は CircleCI の命名規則のため、gh CLI が期待する GITHUB_TOKEN に明示的に再マップする
             if [ -z "${CLAUDE_CODE_OAUTH_TOKEN}" ]; then
               echo "ERROR: CLAUDE_CODE_OAUTH_TOKEN not set in CircleCI project environment variables" >&2; exit 1
             fi
@@ -33,37 +33,9 @@ jobs:
               echo "ERROR: GH_TOKEN not set in CircleCI project environment variables" >&2; exit 1
             fi
             export GITHUB_TOKEN="$GH_TOKEN"
-            claude -p "/pr-review-toolkit:review-pr" 2>&1 | tee /tmp/review-output.txt
-            if [ ! -s /tmp/review-output.txt ]; then
-              echo "ERROR: claude produced no output — review may have failed silently" >&2
-              exit 1
-            fi
-      - run:
-          name: Post Review Comment
-          command: |
-            set -euo pipefail
-            if [ -z "${CIRCLE_PULL_REQUEST:-}" ]; then
-              echo "PR が検出されませんでした。コメントの投稿をスキップします"
-              exit 0
-            fi
-            PR_NUMBER=$(echo "$CIRCLE_PULL_REQUEST" | grep -oE '[0-9]+$')
-            echo "PR番号: $PR_NUMBER"
-            echo "リポジトリ: ${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
-            echo "review-output.txt サイズ: $(wc -c < /tmp/review-output.txt) bytes"
-            # shell 置換 $(...) はトレイリング改行を削除するため、ファイルに書き出して --data @file で渡す
-            jq -Rs '{body: .}' /tmp/review-output.txt > /tmp/review-payload.json
-            RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST \
-              -H "Authorization: token $GH_TOKEN" \
-              -H "Content-Type: application/json" \
-              --data @/tmp/review-payload.json \
-              "https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/issues/${PR_NUMBER}/comments")
-            HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
-            BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
-            echo "HTTP ステータス: $HTTP_STATUS"
-            if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
-              echo "ERROR: GitHub API エラー: $BODY" >&2
-              exit 1
-            fi
+            # claude のサブエージェント出力は TTY に直接書き込まれパイプでは捕捉できないため、
+            # claude 自身に gh pr comment でPRコメントを投稿させる
+            claude -p "/pr-review-toolkit:review-pr を実行し、レビュー結果の全文を gh pr comment --body を使って現在のPRにコメントとして投稿してください"
 
 workflows:
   on-pr:
