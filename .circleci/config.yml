@@ -7,10 +7,15 @@ jobs:
       - checkout
       - run:
           name: Install Claude Code
-          command: npm install -g @anthropic-ai/claude-code@2.1.51
+          no_output_timeout: 3m
+          command: |
+            set -euo pipefail
+            npm install -g @anthropic-ai/claude-code@2.1.51
+            claude --version | grep -qF "2.1.51"
       - run:
           name: Setup Claude Config
           command: |
+            set -euo pipefail
             # Claude Code を非対話モードで動かすには hasCompletedOnboarding が必要
             mkdir -p ~/.claude
             echo '{"hasCompletedOnboarding": true}' > ~/.claude/config.json
@@ -19,14 +24,20 @@ jobs:
           no_output_timeout: 10m
           command: |
             set -euo pipefail
-            if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+            # CLAUDE_CODE_OAUTH_TOKEN は CircleCI がプロジェクト環境変数として自動 export 済み
+            # GH_TOKEN は CircleCI の命名規則のため、claude が期待する GITHUB_TOKEN に明示的に再マップする
+            if [ -z "${CLAUDE_CODE_OAUTH_TOKEN}" ]; then
               echo "ERROR: CLAUDE_CODE_OAUTH_TOKEN not set in CircleCI project environment variables" >&2; exit 1
             fi
-            if [ -z "${GH_TOKEN:-}" ]; then
+            if [ -z "${GH_TOKEN}" ]; then
               echo "ERROR: GH_TOKEN not set in CircleCI project environment variables" >&2; exit 1
             fi
             export GITHUB_TOKEN="$GH_TOKEN"
-            claude -p "/pr-review-toolkit:review-pr"
+            claude -p "/pr-review-toolkit:review-pr" | tee /tmp/review-output.txt
+            if [ ! -s /tmp/review-output.txt ]; then
+              echo "ERROR: claude produced no output — review may have failed silently" >&2
+              exit 1
+            fi
 
 workflows:
   on-pr:
