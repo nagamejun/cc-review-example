@@ -2,7 +2,7 @@
   "permissions": {
     "deny": [
       "Read(.env*)",
-      "Read(config.yaml)"
+      "Read(base.yaml)"
     ]
   }
 }
