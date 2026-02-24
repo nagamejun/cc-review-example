@@ -7,19 +7,24 @@ jobs:
       - checkout
       - run:
           name: Install Claude Code
-          command: npm install -g @anthropic-ai/claude-code
+          command: npm install -g @anthropic-ai/claude-code@2.1.51
       - run:
           name: Setup Claude Config
           command: |
-            # 非対話モードで動かすための初期設定
+            # Claude Code を非対話モードで動かすには hasCompletedOnboarding が必要
             mkdir -p ~/.claude
             echo '{"hasCompletedOnboarding": true}' > ~/.claude/config.json
       - run:
           name: Run PR Review
+          no_output_timeout: 10m
           command: |
-            # pr-review-toolkit スキルを呼び出してレビューを実行
-            # -p (prompt) で明示的に命令を渡します
-            # CLAUDE_CODE_OAUTH_TOKEN は CircleCI プロジェクト環境変数から自動注入される
+            set -euo pipefail
+            if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+              echo "ERROR: CLAUDE_CODE_OAUTH_TOKEN not set in CircleCI project environment variables" >&2; exit 1
+            fi
+            if [ -z "${GH_TOKEN:-}" ]; then
+              echo "ERROR: GH_TOKEN not set in CircleCI project environment variables" >&2; exit 1
+            fi
             export GITHUB_TOKEN="$GH_TOKEN"
             claude -p "/pr-review-toolkit:review-pr"
 
@@ -29,4 +34,4 @@ workflows:
       - claude-review:
           filters:
             branches:
-              ignore: main # 必要に応じて調整
+              ignore: main
