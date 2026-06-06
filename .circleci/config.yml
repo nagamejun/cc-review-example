@@ -6,23 +6,44 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install GitHub CLI
+          command: |
+            set -euo pipefail
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt-get update -q
+            sudo apt-get install -y gh
+      - run:
           name: Install Claude Code
-          command: npm install -g @anthropic-ai/claude-code
+          no_output_timeout: 3m
+          command: |
+            set -euo pipefail
+            npm install -g @anthropic-ai/claude-code@2.1.51
+            claude --version | grep -qF "2.1.51"
       - run:
           name: Setup Claude Config
           command: |
-            # 非対話モードで動かすための初期設定
+            set -euo pipefail
+            # Claude Code を非対話モードで動かすには hasCompletedOnboarding が必要
             mkdir -p ~/.claude
             echo '{"hasCompletedOnboarding": true}' > ~/.claude/config.json
       - run:
           name: Run PR Review
+          no_output_timeout: 10m
           command: |
-            # pr-review-toolkit スキルを呼び出してレビューを実行
-            # -p (prompt) で明示的に命令を渡します
-            claude -p "/pr-review-toolkit:review-pr"
-          environment:
-            CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}
-            GITHUB_TOKEN: ${GH_TOKEN}
+            set -euo pipefail
+            # CLAUDE_CODE_OAUTH_TOKEN は CircleCI がプロジェクト環境変数として自動 export 済み
+            # GH_TOKEN は CircleCI の命名規則のため、gh CLI が期待する GITHUB_TOKEN に明示的に再マップする
+            if [ -z "${CLAUDE_CODE_OAUTH_TOKEN}" ]; then
+              echo "ERROR: CLAUDE_CODE_OAUTH_TOKEN not set in CircleCI project environment variables" >&2; exit 1
+            fi
+            if [ -z "${GH_TOKEN}" ]; then
+              echo "ERROR: GH_TOKEN not set in CircleCI project environment variables" >&2; exit 1
+            fi
+            export GITHUB_TOKEN="$GH_TOKEN"
+            # claude のサブエージェント出力は TTY に直接書き込まれパイプでは捕捉できないため、
+            # claude 自身に gh pr comment でPRコメントを投稿させる
+            claude --dangerously-skip-permissions -p "src/app/text.md を読み取って読み取った内容を gh pr comment --body を使って現在のPRにコメントとして投稿してください"
 
 workflows:
   on-pr:
@@ -30,4 +51,4 @@ workflows:
       - claude-review:
           filters:
             branches:
-              ignore: main # 必要に応じて調整
+              ignore: main

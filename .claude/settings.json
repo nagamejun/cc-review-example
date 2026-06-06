@@ -1,0 +1,13 @@
+{
+  "env": {
+    "CLAUDE_CODE_SHELL": "zsh"
+  },
+  "permissions": {
+    "deny": [
+      "Read(src/**)",
+      "Read(.env*)",
+      "Read(base.yaml)"
+    ]
+  }
+}
+
